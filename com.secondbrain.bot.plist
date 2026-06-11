@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.secondbrain.bot</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/kvp/Documents/ИИ проекты/Второй мозг/start.sh</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/kvp/Documents/ИИ проекты/Второй мозг</string>
+    
+    <!-- Запускать при включении макбука -->
+    <key>RunAtLoad</key>
+    <true/>
+    
+    <!-- Перезапускать, если вдруг упадет -->
+    <key>KeepAlive</key>
+    <true/>
+    
+    <!-- Логи для отладки -->
+    <key>StandardOutPath</key>
+    <string>/Users/kvp/Documents/ИИ проекты/Второй мозг/bot.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/kvp/Documents/ИИ проекты/Второй мозг/bot_error.log</string>
+</dict>
+</plist>

@@ -1,0 +1,16 @@
+name: second-brain
+
+services:
+  bot:
+    build: ./bot
+    container_name: second_brain_bot
+    restart: unless-stopped
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ALLOWED_USER_IDS=${ALLOWED_USER_IDS}
+    env_file:
+      - .env
+    volumes:
+      # Пробрасываем папку Obsidian с хоста внутрь контейнера
+      - ${OBSIDIAN_VAULT_PATH:-./vault}:/vault
