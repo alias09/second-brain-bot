@@ -69,10 +69,12 @@ async def handle_voice(message: Message, bot: Bot, state: FSMContext):
     
     await msg.edit_text("🎙 Транскрибирую аудио...")
     try:
-        text = await ai_service.transcribe_audio(temp_ogg_path)
+        raw_text = await ai_service.transcribe_audio(temp_ogg_path)
+        await msg.edit_text("🧠 Структурирую аудио...")
+        structured_text = await ai_service.structure_raw_text(raw_text)
         
-        # Отправляем распознанный текст в Агента
-        await process_user_input(text, message, state, wait_msg=msg)
+        # Отправляем структурированный текст в Агента
+        await process_user_input(structured_text, message, state, wait_msg=msg)
     except Exception as e:
         await msg.edit_text(f"❌ Ошибка при обработке аудио: {e}")
     finally:
@@ -92,10 +94,14 @@ async def handle_photo(message: Message, bot: Bot, state: FSMContext):
     try:
         saved_name = obsidian.save_attachment(temp_path, "photo.jpg")
         caption = message.caption or "Фото с телефона"
+        
+        await msg.edit_text("👁 Анализирую изображение (Vision)...")
+        analysis_result = await ai_service.analyze_image(temp_path, caption)
+        
         time_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        note_content = f"---\ncreated: '{time_now}'\ntags: [фото, медиа]\ntype: 'фото'\n---\n# Фотография\n\n![[{saved_name}]]\n\n{caption}"
+        note_content = f"---\ncreated: '{time_now}'\ntags: [фото, медиа, vision]\ntype: 'фото'\n---\n# Анализ изображения\n\n![[{saved_name}]]\n\n{analysis_result}"
         filename = obsidian.save_note(f"0-Inbox/Photo_{saved_name}.md", note_content)
-        await msg.edit_text(f"✅ Фото сохранено: `{filename}`", parse_mode="Markdown")
+        await msg.edit_text(f"✅ Фото сохранено и проанализировано: `{filename}`", parse_mode="Markdown")
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)

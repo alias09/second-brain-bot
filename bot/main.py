@@ -6,6 +6,7 @@ from aiogram.enums import ParseMode
 from dotenv import load_dotenv
 
 import handlers
+import consolidation
 
 load_dotenv()
 
@@ -39,6 +40,8 @@ async def main():
     dp.include_router(handlers.router)
 
     print("🚀 Запуск Telegram бота 'Второй Мозг'...")
+    # Запускаем фоновый процесс консолидации памяти
+    asyncio.create_task(consolidation.run_consolidation_loop())
     await dp.start_polling(bot)
 
 if __name__ == "__main__":

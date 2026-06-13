@@ -25,6 +25,42 @@ def get_all_md_files():
                 files.append(os.path.join(root, name))
     return files
 
+def chunk_markdown(text: str, max_chunk_size: int = 1500, overlap_size: int = 400) -> list[str]:
+    """Разбивает текст на куски с пересечением (overlap) для сохранения контекста."""
+    paragraphs = text.split('\n\n')
+    chunks = []
+    current_paragraphs = []
+    current_length = 0
+    
+    for p in paragraphs:
+        p_len = len(p) + 2
+        
+        if current_length + p_len > max_chunk_size and current_paragraphs:
+            chunks.append("\n\n".join(current_paragraphs).strip())
+            
+            overlap_paragraphs = []
+            overlap_length = 0
+            for op in reversed(current_paragraphs):
+                if overlap_length + len(op) + 2 <= overlap_size:
+                    overlap_paragraphs.insert(0, op)
+                    overlap_length += len(op) + 2
+                else:
+                    if not overlap_paragraphs:
+                        overlap_paragraphs.insert(0, op)
+                        overlap_length += len(op) + 2
+                    break
+            
+            current_paragraphs = overlap_paragraphs
+            current_length = overlap_length
+            
+        current_paragraphs.append(p)
+        current_length += p_len
+        
+    if current_paragraphs:
+        chunks.append("\n\n".join(current_paragraphs).strip())
+        
+    return [c for c in chunks if len(c) > 10]
+
 async def update_embeddings():
     """Синхронизирует кэш эмбеддингов с файлами в Vault."""
     cache = load_cache()
@@ -32,6 +68,8 @@ async def update_embeddings():
     
     updated = False
     current_files = set()
+    
+    import ai_service
     
     for file_path in md_files:
         current_files.add(file_path)
@@ -47,15 +85,23 @@ async def update_embeddings():
                 if len(content.strip()) < 10:
                     continue
                     
-                # Получаем вектор (ограничим размер текста)
-                text_to_embed = content[:8000]
-                import ai_service
-                embedding = await ai_service.get_embedding(text_to_embed)
+                chunks_texts = chunk_markdown(content)
+                chunks_data = []
+                
+                for idx, text_chunk in enumerate(chunks_texts):
+                    rel_path = os.path.relpath(file_path, VAULT_PATH)
+                    # Обогащаем чанк контекстом файла для лучшего эмбеддинга
+                    enriched_text = f"[Файл: {rel_path}]\n{text_chunk}"
+                    embedding = await ai_service.get_embedding(enriched_text)
+                    chunks_data.append({
+                        'index': idx,
+                        'text': text_chunk,
+                        'embedding': embedding
+                    })
                 
                 cache[file_path] = {
                     'mtime': mtime,
-                    'embedding': embedding,
-                    'content': content
+                    'chunks': chunks_data
                 }
                 updated = True
             except Exception as e:
@@ -81,7 +127,7 @@ def cosine_similarity(a, b):
     return np.dot(a, b) / (norm_a * norm_b)
 
 async def search_notes(query: str, top_k: int = 5) -> list[str]:
-    """Ищет наиболее релевантные заметки для запроса."""
+    """Ищет наиболее релевантные заметки (чанки) для запроса."""
     cache = await update_embeddings()
     if not cache:
         return []
@@ -91,12 +137,14 @@ async def search_notes(query: str, top_k: int = 5) -> list[str]:
     
     results = []
     for file_path, data in cache.items():
-        if 'embedding' in data:
-            sim = cosine_similarity(query_embedding, data['embedding'])
-            results.append((sim, data['content'], file_path))
+        rel_path = os.path.relpath(file_path, VAULT_PATH)
+        if 'chunks' in data:
+            for chunk in data['chunks']:
+                sim = cosine_similarity(query_embedding, chunk['embedding'])
+                results.append((sim, chunk['text'], rel_path, chunk.get('index', 0)))
             
     # Сортируем по убыванию сходства
     results.sort(key=lambda x: x[0], reverse=True)
     
-    # Возвращаем контент топ K заметок с их относительным путем
-    return [f"File: {os.path.relpath(path, VAULT_PATH)}\nContent:\n{content}" for _, content, path in results[:top_k]]
+    # Возвращаем контент топ K чанков с указанием их расположения
+    return [f"Файл: {path}\nФрагмент:\n{text}" for _, text, path, _ in results[:top_k]]
